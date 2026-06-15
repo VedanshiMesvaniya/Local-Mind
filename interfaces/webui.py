@@ -10,28 +10,28 @@ if "messages" not in st.session_state:
 
 # 3. SIDEBAR: KNOWLEDGE BASE & TELEMETRY
 with st.sidebar:
-    st.title("🏢 LOCAL-MIND Control Center")
+    st.title(" LOCAL-MIND Control Center")
     st.divider()
     
     # Knowledge Base Manager
-    st.subheader("📂 Knowledge Base")
+    st.subheader(" Knowledge Base")
     try:
         response = httpx.get("http://localhost:8000/documents", timeout=5.0)
         docs = response.json()
         
         if docs:
             for doc in docs:
-                st.success(f"📄 **{doc['filename']}**", icon=None)
+                st.success(f" **{doc['filename']}**", icon=None)
                 st.caption(f"Status: {doc['status']} | Size: {doc['size_mb']} MB")
         else:
             st.warning("No documents found. Run `python run_ingest.py` to load PDFs.")
     except Exception as e:
-        st.error("❌ Cannot connect to API. Is the backend running?")
+        st.error(" Cannot connect to API. Is the backend running?")
 
     st.divider()
     
     # Telemetry
-    st.subheader("📊 System Telemetry")
+    st.subheader(" System Telemetry")
     try:
         perf = httpx.get("http://localhost:8000/metrics", timeout=2.0).json()
         col1, col2 = st.columns(2)
@@ -91,7 +91,7 @@ if prompt := st.chat_input("Ask a compliance question..."):
         except httpx.ReadTimeout:
             st.error("⏳ Request timed out. The local model is taking too long to respond.")
         except Exception as e:
-            st.error(f"❌ Connection error: {str(e)}")
+            st.error(f" Connection error: {str(e)}")
     
     # Add assistant message to state
     st.session_state.messages.append({"role": "assistant", "content": full_response})

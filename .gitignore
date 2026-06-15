@@ -15,3 +15,4 @@ query_performance_log.csv
 rag_metrics_log.csv
 system_performance_log.csv
 pdfs/*.pdf
+.DS_Store
