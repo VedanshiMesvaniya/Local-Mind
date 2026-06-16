@@ -13,15 +13,18 @@ mem0_config = {
 # Initialize Mem0
 m = Memory.from_config(mem0_config)
 
+# Disable memory writes for document queries
 def save_memory_background(conversation_text: str, user_id: str):
-    """Runs asynchronously via FastAPI BackgroundTasks."""
-    try:
-        m.add(conversation_text, user_id=user_id)
-    except Exception as e:
-        print(f"Memory save failed: {e}")
+    # Temporarily disabled for compliance
+    return
+    # try:
+    #     m.add(conversation_text, user_id=user_id)
+    # except Exception as e:
+    #     print(f"Memory save failed: {e}")
 
 def search_memory(query: str, user_id: str):
     results = m.search(query, filters={"user_id": user_id})
     if isinstance(results, dict) and 'results' in results:
         return results['results']
     return results if isinstance(results, list) else []
+

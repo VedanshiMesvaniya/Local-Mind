@@ -8,7 +8,7 @@ DB_DIR = BASE_DIR / "chroma_db_local"
 
 # Models
 MAIN_MODEL = os.getenv("MAIN_MODEL", "minimax-m3:cloud")
-UTILITY_MODEL = "phi4-mini:latest"
+UTILITY_MODEL = "qwen2.5:1.5b"
 EMBEDDING_MODEL = "nomic-embed-text"
 
 # Ollama

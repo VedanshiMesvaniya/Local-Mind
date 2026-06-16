@@ -34,9 +34,11 @@ async def stream_query(request: QueryRequest, background_tasks: BackgroundTasks)
     docs = await retriever.ainvoke(standalone_q)
     context = format_docs(docs)
     
-    memories = search_memory(request.prompt, request.user_id)
-    memory_context = "\n".join([mem.get('memory', str(mem)) for mem in memories]) if memories else "None"
-    
+    #memories = search_memory(request.prompt, request.user_id)
+    #memory_context = "\n".join([mem.get('memory', str(mem)) for mem in memories]) if memories else "None"
+    # Comment out or remove the memory search
+    memory_context = "No long-term memories active. All answers are grounded solely in retrieved documents."
+
     # 4. Stream Generation
     chain = get_rag_chain(request.model_name)
     

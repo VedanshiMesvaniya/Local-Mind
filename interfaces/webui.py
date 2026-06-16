@@ -89,7 +89,7 @@ if prompt := st.chat_input("Ask a compliance question..."):
                     st.error(f"API Error: {response.status_code}")
                     
         except httpx.ReadTimeout:
-            st.error("⏳ Request timed out. The local model is taking too long to respond.")
+            st.error(" Request timed out. The local model is taking too long to respond.")
         except Exception as e:
             st.error(f" Connection error: {str(e)}")
     
