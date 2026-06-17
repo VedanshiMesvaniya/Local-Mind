@@ -1,3 +1,4 @@
+# config/settings.py
 import os
 from pathlib import Path
 
@@ -7,8 +8,8 @@ PDF_DIR = BASE_DIR / "pdfs"
 DB_DIR = BASE_DIR / "chroma_db_local"
 
 # Models
-MAIN_MODEL = os.getenv("MAIN_MODEL", "minimax-m3:cloud")
-UTILITY_MODEL = "qwen2.5:1.5b"
+MAIN_MODEL = os.getenv("MAIN_MODEL", "qwen2.5:7b") 
+UTILITY_MODEL = "qwen3:1.7b"
 EMBEDDING_MODEL = "nomic-embed-text"
 
 # Ollama

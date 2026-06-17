@@ -12,4 +12,4 @@ if __name__ == "__main__":
     print(" Scanning the /pdfs directory...")
     total_chunks = run_ingestion()
     print(f" Ingestion Complete! Indexed {total_chunks} chunks.")
-    print(" You can now start the API with: uvicorn localmind.interfaces.api:app --reload")
+    print(" You can now start the API with: uvicorn interfaces.api:app --reload")
