@@ -1,16 +1,3 @@
-# Uncommitted Changes v1
-
-This file summarizes the current workspace changes that have not been committed yet.
-
-## Current uncommitted files
-
-- `.gitignore`
-- `app.py`
-- `config/settings.py`
-- `ingestion/ingest.py`
-- `rag_core.py`
-- `observability/file_tracker.py`
-- `chat_history/`
 
 ## Summary of changes
 
@@ -36,5 +23,4 @@ This file summarizes the current workspace changes that have not been committed 
 - Updated `app.py` so the UI uses the new chat history location and keeps current working behavior intact.
 
 ## Notes
-- These changes are still local and uncommitted.
 - `logs/chunked_files.json` and `chat_history/chat_sessions.json` are runtime data files and may change as the app runs.
