@@ -6,6 +6,7 @@
 - New chat threads are created with their own chat id.
 - Switching chats reloads the correct conversation.
 - New Chat now opens directly without the callback popup.
+- Updated `interfaces/webui.py` to show saved chats in the sidebar, switch active threads, and keep the visible conversation in sync with persistent history.
 - Assistant message rendering hides internal `<think>...</think>` reasoning while preserving the answer format requested by the user.
 
 ### 2. Ingestion tracking and logs
