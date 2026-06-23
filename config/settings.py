@@ -8,9 +8,9 @@ PDF_DIR = BASE_DIR / "pdfs"
 DB_DIR = BASE_DIR / "chroma_db_local"
 
 # Models
-MAIN_MODEL = os.getenv("MAIN_MODEL", "qwen2.5:7b") 
-UTILITY_MODEL = "qwen3:1.7b"
-EMBEDDING_MODEL = "nomic-embed-text"
+MAIN_MODEL = os.getenv("MAIN_MODEL", "qwen3.5:9b") 
+UTILITY_MODEL = "phi4-mini:latest"
+EMBEDDING_MODEL = "nomic-embed-text:latest"
 
 # Ollama
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")

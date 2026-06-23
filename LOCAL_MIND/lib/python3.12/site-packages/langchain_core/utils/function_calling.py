@@ -57,10 +57,8 @@ _ORIGIN_MAP: dict[type, Any] = {
     collections.abc.Mapping: typing.Mapping,
     collections.abc.Sequence: typing.Sequence,
     collections.abc.MutableMapping: typing.MutableMapping,
+    types.UnionType: Union,
 }
-# Add UnionType mapping for Python 3.10+
-if hasattr(types, "UnionType"):
-    _ORIGIN_MAP[types.UnionType] = Union
 
 
 class FunctionDescription(TypedDict):
@@ -349,7 +347,7 @@ def _format_tool_to_openai_function(tool: BaseTool) -> FunctionDescription:
             return _convert_pydantic_to_openai_function(
                 tool.tool_call_schema, name=tool.name, description=tool.description
             )
-        error_msg = (
+        error_msg = (  # type: ignore[unreachable]
             f"Unsupported tool call schema: {tool.tool_call_schema}. "
             "Tool call schema must be a JSON schema dict or a Pydantic model."
         )
