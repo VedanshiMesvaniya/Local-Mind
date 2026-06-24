@@ -19,13 +19,20 @@ def _now_iso() -> str:
 
 
 def _safe_message(message: Dict[str, Any]) -> Dict[str, Any]:
-    safe = {
-        "role": message.get("role", "assistant"),
-        "content": message.get("content", ""),
-    }
-    if "sources" in message:
-        safe["sources"] = deepcopy(message["sources"])
+    safe = deepcopy(message) if isinstance(message, dict) else {}
+    safe["role"] = safe.get("role", "assistant")
+    safe["content"] = safe.get("content", "")
     return safe
+
+
+def _safe_list(values: Any) -> List[Dict[str, Any]]:
+    if not isinstance(values, list):
+        return []
+    return [deepcopy(value) for value in values if isinstance(value, dict)]
+
+
+def _is_hidden_session(session: Dict[str, Any]) -> bool:
+    return session.get("id") == "__file_tracking__" or session.get("kind") == "system"
 
 
 def _short_title(text: str, limit: int = 42) -> str:
@@ -38,18 +45,21 @@ def _short_title(text: str, limit: int = 42) -> str:
 
 
 def _normalize_session(session: Dict[str, Any]) -> Dict[str, Any]:
-    messages = [_safe_message(msg) for msg in session.get("messages", [])]
-    created_at = session.get("created_at") or _now_iso()
-    updated_at = session.get("updated_at") or created_at
-    title = session.get("title") or "New Chat"
+    normalized = deepcopy(session) if isinstance(session, dict) else {}
+    messages = [_safe_message(msg) for msg in normalized.get("messages", [])]
+    turns = _safe_list(normalized.get("turns", []))
 
-    return {
-        "id": session.get("id") or uuid.uuid4().hex,
-        "title": title,
-        "created_at": created_at,
-        "updated_at": updated_at,
-        "messages": messages,
-    }
+    created_at = normalized.get("created_at") or _now_iso()
+    updated_at = normalized.get("updated_at") or created_at
+
+    normalized["id"] = normalized.get("id") or uuid.uuid4().hex
+    normalized["title"] = normalized.get("title") or "New Chat"
+    normalized["created_at"] = created_at
+    normalized["updated_at"] = updated_at
+    normalized["messages"] = messages
+    normalized["turns"] = turns
+    normalized.pop("embedding_metrics", None)
+    return normalized
 
 
 def _sort_sessions(sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -67,24 +77,44 @@ def _load_payload() -> List[Dict[str, Any]]:
     except Exception:
         return []
 
-    return payload if isinstance(payload, list) else []
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        sessions = payload.get("sessions")
+        if isinstance(sessions, list):
+            return sessions
+        sessions = payload.get("chat_sessions")
+        if isinstance(sessions, list):
+            return sessions
+    return []
+
+
+def _load_all_sessions() -> List[Dict[str, Any]]:
+    return _sort_sessions([_normalize_session(session) for session in _load_payload() if isinstance(session, dict)])
+
+
+def _write_sessions(sessions: List[Dict[str, Any]]) -> None:
+    CHAT_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_file = CHAT_HISTORY_FILE.with_suffix(".tmp")
+    with open(tmp_file, "w", encoding="utf-8") as file:
+        json.dump(_sort_sessions(sessions), file, indent=2, ensure_ascii=True)
+    tmp_file.replace(CHAT_HISTORY_FILE)
 
 
 def load_chat_sessions() -> List[Dict[str, Any]]:
     with _LOCK:
-        payload = _load_payload()
-    return _sort_sessions([_normalize_session(session) for session in payload if isinstance(session, dict)])
+        return [session for session in _load_all_sessions() if not _is_hidden_session(session)]
+
+
+def load_all_chat_sessions() -> List[Dict[str, Any]]:
+    with _LOCK:
+        return _load_all_sessions()
 
 
 def save_chat_sessions(sessions: List[Dict[str, Any]]) -> None:
-    normalized = _sort_sessions([_normalize_session(session) for session in sessions])
-    CHAT_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
-    tmp_file = CHAT_HISTORY_FILE.with_suffix(".tmp")
-
     with _LOCK:
-        with open(tmp_file, "w", encoding="utf-8") as file:
-            json.dump(normalized, file, indent=2, ensure_ascii=True)
-        tmp_file.replace(CHAT_HISTORY_FILE)
+        normalized = [_normalize_session(session) for session in sessions if not _is_hidden_session(session)]
+        _write_sessions(normalized)
 
 
 def create_chat_session(title: str = "New Chat") -> Dict[str, Any]:
@@ -96,6 +126,7 @@ def create_chat_session(title: str = "New Chat") -> Dict[str, Any]:
         "created_at": timestamp,
         "updated_at": timestamp,
         "messages": [],
+        "turns": [],
     }
     sessions.insert(0, session)
     save_chat_sessions(sessions)
@@ -114,8 +145,9 @@ def upsert_chat_message(
     role: str,
     content: str,
     sources: Optional[List[Dict[str, Any]]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    sessions = load_chat_sessions()
+    sessions = load_all_chat_sessions()
     target = None
 
     for session in sessions:
@@ -131,17 +163,48 @@ def upsert_chat_message(
             "created_at": timestamp,
             "updated_at": timestamp,
             "messages": [],
+            "turns": [],
         }
         sessions.insert(0, target)
 
     message = {"role": role, "content": content}
     if sources is not None:
         message["sources"] = deepcopy(sources)
+    if metadata:
+        message.update(deepcopy(metadata))
     target["messages"].append(message)
     target["updated_at"] = _now_iso()
 
     if role == "user" and target.get("title", "New Chat") in {"New Chat", "Untitled Chat"}:
         target["title"] = _short_title(content)
+
+    query_id = message.get("query_id")
+    if query_id:
+        turns = target.setdefault("turns", [])
+        turn = None
+        for existing_turn in turns:
+            if existing_turn.get("query_id") == query_id:
+                turn = existing_turn
+                break
+
+        if turn is None:
+            turn = {
+                "query_id": query_id,
+                "session_id": target["id"],
+            }
+            turns.append(turn)
+
+        turn["session_id"] = target["id"]
+        if role == "user":
+            turn["user_query"] = content
+            if "query_timestamp" in message:
+                turn["query_timestamp"] = message["query_timestamp"]
+        elif role == "assistant":
+            turn["response"] = content
+            if "user_query" in message and "user_query" not in turn:
+                turn["user_query"] = message["user_query"]
+            if "response_metrics" in message:
+                turn["response_metrics"] = deepcopy(message["response_metrics"])
 
     save_chat_sessions(sessions)
     return target

@@ -1,6 +1,8 @@
 import sys
 import time
+import uuid
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 
 import ollama
@@ -100,6 +102,10 @@ def _clear_current_chat():
     st.session_state.active_chat_id = sessions[0]["id"]
     st.session_state.messages = []
     st.rerun()
+
+
+def _utc_now_iso():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
 def _ensure_index():
@@ -249,8 +255,19 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 if prompt := st.chat_input("Ask a question about your documents..."):
+    query_id = uuid.uuid4().hex
+    query_timestamp = _utc_now_iso()
     st.session_state.messages.append({"role": "user", "content": prompt})
-    upsert_chat_message(st.session_state.active_chat_id, "user", prompt)
+    upsert_chat_message(
+        st.session_state.active_chat_id,
+        "user",
+        prompt,
+        metadata={
+            "session_id": st.session_state.active_chat_id,
+            "query_id": query_id,
+            "query_timestamp": query_timestamp,
+        },
+    )
     with st.chat_message("Mihir", avatar="👤"):
         st.markdown(prompt)
 
@@ -282,6 +299,8 @@ if prompt := st.chat_input("Ask a question about your documents..."):
                 memory_context = "No long-term memories active. All answers are grounded solely in retrieved documents."
 
                 dynamic_rag_chain = get_rag_chain(selected_model)
+                response_start_time = _utc_now_iso()
+                response_perf_start = time.perf_counter()
                 response_stream = dynamic_rag_chain.stream({
                     "question": prompt,
                     "context": context,
@@ -291,6 +310,8 @@ if prompt := st.chat_input("Ask a question about your documents..."):
 
                 full_response = st.write_stream(_stream_visible_response(response_stream))
                 full_response = _strip_thinking_content(full_response)
+                response_end_time = _utc_now_iso()
+                response_latency_ms = int((time.perf_counter() - response_perf_start) * 1000)
                 latency = time.time() - start_time
                 st.caption(f"⏱️ Latency: {latency:.2f}s | 🔍 Search: '{standalone_question}' | 🧠 Model: `{selected_model}`")
 
@@ -298,5 +319,20 @@ if prompt := st.chat_input("Ask a question about your documents..."):
             st.error(f"Pipeline Error: {e}")
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
-    upsert_chat_message(st.session_state.active_chat_id, "assistant", full_response)
+    upsert_chat_message(
+        st.session_state.active_chat_id,
+        "assistant",
+        full_response,
+        metadata={
+            "session_id": st.session_state.active_chat_id,
+            "query_id": query_id,
+            "user_query": prompt,
+            "response_metrics": {
+                "response_start_time": response_start_time,
+                "response_end_time": response_end_time,
+                "response_latency_ms": response_latency_ms,
+                "model_name": selected_model,
+            },
+        },
+    )
     st.session_state.chat_sessions = load_chat_sessions()

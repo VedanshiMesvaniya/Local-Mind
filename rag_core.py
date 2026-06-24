@@ -518,7 +518,7 @@ Step 2: Search the retrieved context for relevant information.
 Step 3: Determine whether the answer is fully supported, partially supported, or unsupported.
 Step 4: Generate a clear and helpful response.
 Step 5: If information is missing, explicitly state the limitation.
-Step 6: Add examples or simplified explanations when they improve understanding.
+Step 6: Add examples or simplified explanations when they improve understanding. 
 Step 7: Verify that no unsupported claims are presented as facts.
 
 IMPORTANT

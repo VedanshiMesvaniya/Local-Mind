@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
-from config.settings import DB_DIR, PDF_DIR
+from config.settings import EMBEDDING_MODEL, DB_DIR, PDF_DIR
 from observability.file_tracker import (
     CHUNK_TRACKING_FILE,
+    append_embedding_tracking_entry,
     build_chunk_tracking_entry,
+    build_embedding_tracking_entry,
     initialize_chunk_tracking_report,
     save_chunk_tracking_report,
 )
@@ -39,6 +43,29 @@ def _tracked_file_names(entries: list[dict]) -> set[str]:
     return names
 
 
+def _record_embedding_audit(
+    file_path: Path,
+    chunk_count: int,
+    embedding_start_time: str,
+    embedding_end_time: str,
+    embedding_duration_ms: int,
+    status: str,
+) -> None:
+    append_embedding_tracking_entry(
+        build_embedding_tracking_entry(
+            file_name=file_path.name,
+            file_path=str(file_path),
+            file_size_bytes=file_path.stat().st_size if file_path.exists() else 0,
+            chunk_count=chunk_count,
+            embedding_model=EMBEDDING_MODEL,
+            embedding_start_time=embedding_start_time,
+            embedding_end_time=embedding_end_time,
+            embedding_duration_ms=embedding_duration_ms,
+            status=status,
+        )
+    )
+
+
 def _ingest_files(pdf_files: list[Path], existing_entries: list[dict]) -> int:
     vectorstore = get_vectorstore()
     text_splitter = get_text_splitter()
@@ -51,9 +78,11 @@ def _ingest_files(pdf_files: list[Path], existing_entries: list[dict]) -> int:
 
     for idx, file_path in enumerate(pdf_files, start=1):
         print(f"Processing [{idx}/{len(pdf_files)}]: {file_path.name}")
+        processed_docs = []
+        embedding_start_time = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        embedding_start_perf = time.perf_counter()
         try:
             docs = hybrid_pdf_parser(file_path)
-            processed_docs = []
             for doc in docs:
                 if doc.metadata["type"] == "text":
                     processed_docs.extend(text_splitter.split_documents([doc]))
@@ -66,10 +95,31 @@ def _ingest_files(pdf_files: list[Path], existing_entries: list[dict]) -> int:
             tracked_files.append(build_chunk_tracking_entry(file_path, docs, processed_docs))
             save_chunk_tracking_report(tracked_files, status="in_progress")
 
+            embedding_end_time = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            embedding_duration_ms = int((time.perf_counter() - embedding_start_perf) * 1000)
+            _record_embedding_audit(
+                file_path=file_path,
+                chunk_count=len(processed_docs),
+                embedding_start_time=embedding_start_time,
+                embedding_end_time=embedding_end_time,
+                embedding_duration_ms=embedding_duration_ms,
+                status="success",
+            )
+
             print(
                 f"Indexed {file_path.name} | chars={tracked_files[-1]['characters_extracted']} | chunks={tracked_files[-1]['chunks_created']}"
             )
         except Exception as e:
+            embedding_end_time = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            embedding_duration_ms = int((time.perf_counter() - embedding_start_perf) * 1000)
+            _record_embedding_audit(
+                file_path=file_path,
+                chunk_count=len(processed_docs),
+                embedding_start_time=embedding_start_time,
+                embedding_end_time=embedding_end_time,
+                embedding_duration_ms=embedding_duration_ms,
+                status="failed",
+            )
             print(f"Skipping {file_path.name}: {e}")
 
     save_chunk_tracking_report(tracked_files, status="completed")

@@ -2,7 +2,9 @@ import streamlit as st
 import time
 import threading
 import os
+import uuid
 from copy import deepcopy
+from datetime import datetime, timezone
 import ollama
 
 # Import the new conversational components from rag_core
@@ -141,6 +143,10 @@ def _clear_current_chat():
     st.rerun()
 
 
+def _utc_now_iso():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Enterprise RAG HUD", layout="wide", page_icon="🏢")
 
@@ -238,8 +244,19 @@ for message in st.session_state.messages:
                     st.code(src['preview'], language="markdown")
 
 if prompt := st.chat_input("Ask a compliance or financial question..."):
+    query_id = uuid.uuid4().hex
+    query_timestamp = _utc_now_iso()
     st.session_state.messages.append({"role": "user", "content": prompt})
-    upsert_chat_message(st.session_state.active_chat_id, "user", prompt)
+    upsert_chat_message(
+        st.session_state.active_chat_id,
+        "user",
+        prompt,
+        metadata={
+            "session_id": st.session_state.active_chat_id,
+            "query_id": query_id,
+            "query_timestamp": query_timestamp,
+        },
+    )
     with st.chat_message("user"):
         st.markdown(prompt)
 
@@ -283,6 +300,8 @@ if prompt := st.chat_input("Ask a compliance or financial question..."):
                 dynamic_rag_chain = get_rag_chain(selected_model)
 
                 # F. GENERATE RESPONSE (STREAMING)
+                response_start_time = _utc_now_iso()
+                response_perf_start = time.perf_counter()
                 response_stream = dynamic_rag_chain.stream({
                     "question": prompt,
                     "context": context,
@@ -294,6 +313,8 @@ if prompt := st.chat_input("Ask a compliance or financial question..."):
                 full_response = st.write_stream(_stream_visible_response(response_stream))
                 full_response = _strip_thinking_content(full_response)
 
+                response_end_time = _utc_now_iso()
+                response_latency_ms = int((time.perf_counter() - response_perf_start) * 1000)
                 latency = time.time() - start_time
 
                 # G. SAVE TO MEMORY IN BACKGROUND (Fixes the UI freeze)
@@ -326,6 +347,17 @@ if prompt := st.chat_input("Ask a compliance or financial question..."):
                     "assistant",
                     full_response,
                     sources=sources,
+                    metadata={
+                        "session_id": st.session_state.active_chat_id,
+                        "query_id": query_id,
+                        "user_query": prompt,
+                        "response_metrics": {
+                            "response_start_time": response_start_time,
+                            "response_end_time": response_end_time,
+                            "response_latency_ms": response_latency_ms,
+                            "model_name": selected_model,
+                        },
+                    },
                 )
                 st.session_state.chat_sessions = load_chat_sessions()
 
